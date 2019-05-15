@@ -1,14 +1,14 @@
 -- see pg_timezone_names
 create table if not exists timezones
 (
-    timezone_id int         not null
+    timezone_id int      not null
         generated always as identity
         primary key,
     -- like Europe/Moscow
-    name        varchar(40) not null unique,
+    name        varchar  not null unique,
 
     -- current offset, considering dst & stuff
-    utc_offset  interval    not null
+    utc_offset  interval not null
 );
 
 create unique index if not exists timezones_name_index
@@ -17,71 +17,68 @@ create unique index if not exists timezones_name_index
 create table if not exists countries
 (
     -- alpha-2 country code
-    country_code char(2)     not null
+    country_code char(2) not null
         primary key,
     -- pretty name in russian
-    name_ru      varchar(50) not null,
+    name_ru      varchar not null,
     -- pretty name in english
-    name_en      varchar(50) not null
+    name_en      varchar not null
 );
 
 create table if not exists cities
 (
-    city_id      int         not null
+    city_id      int     not null
         generated always as identity
         primary key,
-    country_code char(2)     not null references countries (country_code) on delete restrict,
+    country_code char(2) not null references countries (country_code) on delete restrict,
 
     -- pretty name in russian
-    name_ru      varchar(50) not null,
-
-    -- pretty name in english
-    name_en      varchar(50) not null,
+    name         varchar not null,
 
     -- city "id" (name) used by yandex afisha
-    ya_name      varchar(30),
+    ya_name      varchar(30) unique,
 
-    timezone_id  int         not null references timezones (timezone_id) on delete restrict
+    timezone_id  int     not null references timezones (timezone_id) on delete restrict
 );
 
 create table if not exists movies
 (
-    movie_id     int         not null
+    movie_id        int      not null
         generated always as identity
         primary key,
 
     -- Movie title in Russian
-    title_ru     varchar(30) not null,
+    title_ru        varchar  not null,
 
     -- Movie title in English
-    title_en     varchar(30) not null,
+    title_en        varchar  not null,
 
     -- Release Year
-    year         smallint,
+    year            smallint,
     -- Duration in seconds
-    duration     smallint    not null,
+    duration        smallint not null,
     -- Release Date in Russia
-    release_ru   date,
+    release_ru      date,
     -- kinopoisk.ru ID
-    kp_id        int,
+    kp_id           int,
     -- rating on kinopoisk.ru
-    kp_rating    smallint,
+    kp_rating       smallint,
 
     -- last successful kinopoisk.ru sync
-    kp_last_sync timestamp,
+    kp_last_sync    timestamp,
 
     -- yandex afisha event id
-    ya_event_id  varchar(30),
-
-    -- last successful yandex afisha sync
-    ya_last_sync timestamp,
+    ya_event_id     char(24),
 
     -- our rating: current rating
-    rating       smallint,
+    rating          smallint,
     -- and number of votes
-    rating_count int,
+    rating_count    int,
 
-    country_code char(2)     references countries (country_code) on delete set null
+    -- minimum age
+    age_restriction smallint,
+
+    country_code    char(2)  references countries (country_code) on delete set null
 );
 
 create index if not exists movies_rating_index
@@ -89,11 +86,11 @@ create index if not exists movies_rating_index
 
 create table if not exists genres
 (
-    genre_id int         not null
+    genre_id int     not null
         generated always as identity
         primary key,
     -- genre name in russian
-    name_ru  varchar(20) not null,
+    name_ru  varchar not null,
     -- kinopoisk.ru genre id
     kp_id    smallint
 );
@@ -107,21 +104,21 @@ create table if not exists movie_genres
 
 create table if not exists cinemas
 (
-    cinema_id int         not null
+    cinema_id int     not null
         generated always as identity
         primary key,
-    -- cinema id in russian
-    name      varchar(30) not null,
+    -- cinema name in russian
+    name      varchar not null,
     -- full address in russian
-    address   varchar(80) not null,
+    address   varchar not null,
     -- coordinates
-    loc       point       not null,
+    loc       point   not null,
 
     -- the city
-    city_id   int         not null references cities (city_id) on delete restrict,
+    city_id   int     not null references cities (city_id) on delete restrict,
 
     -- place id on yandex afisha
-    ya_id     varchar(30)
+    ya_id     char(24) unique
 );
 
 create table if not exists sessions
@@ -131,10 +128,11 @@ create table if not exists sessions
         primary key,
 
     -- cinema specific hall name
-    hall_name  varchar(20),
+    hall_name  varchar,
 
-    cinema_id  int references cinemas (cinema_id) on delete cascade,
-    movie_id   int references movies (movie_id) on delete cascade,
+    cinema_id  int       not null references cinemas (cinema_id) on delete cascade,
+    movie_id   int       not null references movies (movie_id) on delete cascade,
+    city_id    int       not null references cities (city_id) on delete cascade,
 
     -- session type enum
     type       int,
@@ -147,11 +145,11 @@ create table if not exists sessions
     price_max  smallint,
 
     -- yandex afisha "ticket id"
-    ya_id      varchar(50)
+    ya_id      char(32) unique
 );
 
-create index if not exists sessions_movie_index
-    on sessions (movie_id, date desc);
+create index if not exists sessions_city_movie_index
+    on sessions (movie_id, city_id, date desc);
 
 create index if not exists sessions_cinema_index
     on sessions (cinema_id, date desc);
