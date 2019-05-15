@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"flag"
-	"fmt"
 	"log"
 	"path"
 	"path/filepath"
@@ -19,9 +18,7 @@ var (
 )
 
 const (
-	// repertoriesDir = "repertories"
 	placesDir = "places"
-	// scheduleDir    = "schedule"
 )
 
 // XXX: duplicated in crawl
@@ -34,11 +31,10 @@ func loadPlaces() ([]afisha.Place, error) {
 
 	var places []afisha.Place
 
-	for i, fn := range placeFiles {
-		log.Printf("INFO: Loading place file #%d (%v)", i, fn)
+	for _, fn := range placeFiles {
 		var chunk []afisha.Place
 		if err := util.UnmarshalFromFile(fn, &chunk); err != nil {
-			log.Printf("Failed to load file, skipping: %v", err)
+			log.Printf("Failed to load file %v, skipping: %v", fn, err)
 			continue
 		}
 
@@ -59,6 +55,7 @@ func fillPlaces(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Loaded %d places", len(places))
 
 	citymap := map[string]afisha.City{}
 	tzset := map[string]struct{}{}
@@ -91,6 +88,8 @@ func fillPlaces(db *sql.DB) error {
 		return errors.Errorf("Cant find some timezones")
 	}
 
+	log.Printf("Loaded %d timezones", len(tzmap))
+
 	cities := make([]CityData, len(citymap))
 	i = 0
 	for _, city := range citymap {
@@ -106,14 +105,14 @@ func fillPlaces(db *sql.DB) error {
 		i++
 	}
 
+	log.Printf("Saving %d cities", len(cities))
 	cityIDmap, err := cityLoader.CityIDsCreating(cities)
 	if err != nil {
 		return err
 	}
 
 	var placeDatas []PlaceData
-	maxl := 0
-	maxt := ""
+
 	for _, pl := range places {
 		cid, ok := cityIDmap[pl.City.ID]
 		if !ok {
@@ -128,16 +127,10 @@ func fillPlaces(db *sql.DB) error {
 			Lat:     pl.Coordinates.Latitude,
 			YaID:    pl.ID,
 		})
-
-		if len(pl.Address) > maxl {
-			maxl = len(pl.Address)
-			maxt = pl.Address
-		}
 	}
-	fmt.Printf("longest addr: %d (%s)", maxl, maxt)
 
 	const chunkSize = 100
-
+	log.Printf("Saving %d places in chunks of %d", len(placeDatas), chunkSize)
 	for i := 0; i < len(placeDatas); i += chunkSize {
 		end := i + chunkSize
 
@@ -146,7 +139,6 @@ func fillPlaces(db *sql.DB) error {
 		}
 
 		chunk := placeDatas[i:end]
-		// log.Printf("chunk: %v", chunk)
 
 		_, err := placeLoader.PlaceIDsCreating(chunk)
 		if err != nil {
@@ -162,6 +154,7 @@ func main() {
 
 	flag.StringVar(&outDir, "out", "", "Crawl result output dir")
 	flag.StringVar(&connStr, "conn", "", "Postgres connection specifier")
+	doFillPlaces := flag.Bool("fill-places", false, "Fill places")
 
 	flag.Parse()
 
@@ -182,33 +175,10 @@ func main() {
 	tzLoader = NewTZLoader(db)
 	placeLoader = NewPlaceLoader(db)
 
-	err = fillPlaces(db)
-	if err != nil {
-		panic(err)
+	if *doFillPlaces {
+		err = fillPlaces(db)
+		if err != nil {
+			log.Fatal("fillPlaces failed:", err)
+		}
 	}
-
-	// loader := cityLoader
-	// fmt.Println("City ID by Name `moscow`:")
-	// fmt.Println(loader.CityID("moscow"))
-	// fmt.Println("City ID by Name `moscow`:")
-	// fmt.Println(loader.CityID("moscow"))
-
-	// fmt.Println("City IDs by Names: `moscow`:")
-	// fmt.Println(loader.CityIDs([]string{"moscow"}))
-
-	// fmt.Println("Cities (ensured): moscow, abakan:")
-	// fmt.Println(loader.CityIDsCreating([]CityData{
-	// 	CityData{
-	// 		[...]byte{'R', 'U'},
-	// 		"Москва",
-	// 		"moscow",
-	// 		1,
-	// 	},
-	// 	CityData{
-	// 		[...]byte{'R', 'U'},
-	// 		"Абакан",
-	// 		"abakan",
-	// 		1,
-	// 	},
-	// }))
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,13 +24,11 @@ func NewCityLoader(db *sql.DB) *CityLoader {
 func (l *CityLoader) CityID(name string) (int, error) {
 	l.mu.RLock()
 	if id, ok := l.cache[name]; ok {
-		log.Printf("CityID(%s): cached!", name)
 		l.mu.RUnlock()
 		return id, nil
 	}
 	l.mu.RUnlock()
 
-	log.Printf("CityID(%s): selecting...", name)
 	row := l.db.QueryRow("SELECT city_id FROM cities WHERE ya_name = $1", name)
 
 	var id int
@@ -122,7 +119,6 @@ func (l *CityLoader) InsertCities(cities []CityData) (map[string]int, error) {
 	parts := make([]string, len(cities))
 	idata := make([]interface{}, len(cities)*4)
 
-	fmt.Println("Cities: ", cities)
 	for i, city := range cities {
 		ii := i * 4
 		parts[i] = fmt.Sprintf("( $%d, $%d, $%d, $%d )", ii+1, ii+2, ii+3, ii+4)
@@ -137,8 +133,6 @@ func (l *CityLoader) InsertCities(cities []CityData) (map[string]int, error) {
 		strings.Join(parts, ",") +
 		" RETURNING city_id, ya_name"
 
-	fmt.Println("Statement: ", statement)
-	fmt.Println("Values: ", idata)
 	rows, err := l.db.Query(statement, idata...)
 
 	if err != nil {
@@ -173,10 +167,6 @@ func (l *CityLoader) CityIDsCreating(cities []CityData) (map[string]int, error) 
 	result, err := l.CityIDs(names)
 	if err != nil {
 		return nil, err
-	}
-
-	for k, v := range result {
-		fmt.Printf("`%v`: `%v`\n", k, v)
 	}
 
 	createThese := map[string]*CityData{}
