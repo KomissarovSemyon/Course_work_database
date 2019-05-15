@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"log"
 	"net/http"
@@ -12,35 +11,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stek29/kr/crawler/afisha"
+	"github.com/stek29/kr/crawler/afisha/util"
 )
-
-func unmarshalFromFile(filename string, v interface{}) error {
-	f, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	decoder := json.NewDecoder(f)
-	return decoder.Decode(v)
-}
-
-func marshalIntoFile(filename string, v interface{}) error {
-	f, err := os.OpenFile(filename, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-
-	enc := json.NewEncoder(f)
-	err = enc.Encode(v)
-	if err != nil {
-		f.Close()
-		os.Remove(filename)
-		return err
-	}
-
-	return nil
-}
 
 const (
 	repertoriesDir = "repertories"
@@ -75,7 +47,7 @@ func crawlCityRepertories() error {
 		}
 
 		fn := path.Join(repertoriesPath, city+".json")
-		err = marshalIntoFile(fn, allEvents.Data)
+		err = util.MarshalIntoFile(fn, allEvents.Data)
 		if err != nil {
 			log.Printf("WARN: failed to save %v city repertory, skipping: %v", city, err)
 			continue
@@ -107,7 +79,7 @@ func crawlPlaces() error {
 		}
 
 		fn := path.Join(placesPath, city+".json")
-		err = marshalIntoFile(fn, allPlaces.Items)
+		err = util.MarshalIntoFile(fn, allPlaces.Items)
 		if err != nil {
 			log.Printf("WARN: failed to save %v city places, skipping: %v", city, err)
 			continue
@@ -135,7 +107,7 @@ func loadPlaces() ([]placeInfo, error) {
 	for i, fn := range placeFiles {
 		log.Printf("INFO: Loading place file #%d (%v)", i, fn)
 		var chunk []afisha.Place
-		if err := unmarshalFromFile(fn, &chunk); err != nil {
+		if err := util.UnmarshalFromFile(fn, &chunk); err != nil {
 			log.Printf("Failed to load file, skipping: %v", err)
 			continue
 		}
@@ -192,7 +164,7 @@ func crawlPlaceSchedules(dateStr string) error {
 			continue
 		}
 
-		marshalIntoFile(path.Join(outPath, pl.placeID+".json"), schd.Items)
+		util.MarshalIntoFile(path.Join(outPath, pl.placeID+".json"), schd.Items)
 		if err != nil {
 			log.Printf("WARN: Failed to save schedules for place %v (city=%v), skipping: %v", pl.placeID, pl.city, err)
 			continue
@@ -219,7 +191,7 @@ func main() {
 
 	if *cityListFile != "" {
 		log.Println("Loading City List")
-		if err := unmarshalFromFile(*cityListFile, &cities); err != nil {
+		if err := util.UnmarshalFromFile(*cityListFile, &cities); err != nil {
 			log.Fatalf("Failed to load city list from %v: %v", *cityListFile, err)
 		}
 		log.Printf("Loaded %v cities", len(cities))
