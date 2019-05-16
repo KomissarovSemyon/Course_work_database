@@ -4,6 +4,7 @@ from flask_jsonpify import jsonify
 import psycopg2
 from datetime import datetime
 from flask_cors import CORS
+import base64
 
 pg_url = 'postgres://kino:antman_and_thanos@localhost/kino?sslmode=disable'
 app = Flask(__name__)
@@ -11,6 +12,7 @@ conn = psycopg2.connect(pg_url)
 
 app.config['JSON_AS_ASCII'] = False
 CORS(app)
+
 
 @app.route('/api/current_movies/<city_id>')
 @app.route('/api/current_movies/<city_id>/<date_str>')
@@ -56,7 +58,6 @@ def get_movie_schedule(city_id, movie_id, date_str=None):
         date_str = datetime.today().strftime('%Y-%m-%d')
 
     cur = conn.cursor()
-    columns = ('id', 'ya_id', 'date', 'price_min', 'price_max', 'cinema_name', 'cinema_address')
     cur.execute("""
     SELECT
         s.session_id,
@@ -64,25 +65,64 @@ def get_movie_schedule(city_id, movie_id, date_str=None):
         s.date,
         s.price_min,
         s.price_max,
+        c.cinema_id,
         c.name,
-        c.address
+        c.address,
+        s.hall_name
     FROM sessions s
     JOIN cinemas c on s.cinema_id = c.cinema_id
     WHERE DATE(s.date) = %(date)s AND
-      s.movie_id = %(movie_id)s AND
-      c.city_id = %(city_id)s
+        s.movie_id = %(movie_id)s AND
+        c.city_id = %(city_id)s
     """, {
         'date': date_str,
         'movie_id': movie_id,
         'city_id': city_id
     })
 
-    result = {
-        'sessions': [dict(zip(columns, i)) for i in cur.fetchall()],
-        'date': date_str
-    }
+    cinemas = list()
+    cinemap = dict()
+    for row in cur.fetchall():
+        session_id = row[0]
+        ya_id = row[1]
+        date = row[2]
+        price_min = row[3]
+        price_max = row[4]
+        cinema_id = row[5]
+        cinema_name = row[6]
+        cinema_address = row[7]
+        hall_name = row[8]
 
-    return jsonify(result)
+        if cinema_id not in cinemap:
+            d = {
+                'id': cinema_id,
+                'name': cinema_name,
+                'address': cinema_address,
+                'sessions': list()
+            }
+            cinemas.append(d)
+            cinemap[cinema_id] = d
+
+        ticket_url = None
+        if ya_id:
+            ya_id = ya_id.encode('utf-8')
+            ya_id = base64.b64encode(ya_id).decode('ascii')
+            ticket_url = 'http://widget.afisha.yandex.ru/w/sessions/' + ya_id
+
+        sesslist = cinemap[cinema_id]['sessions']
+        sesslist.append({
+            'id': session_id,
+            'ticket_url': ticket_url,
+            'date': date.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'price_min': price_min,
+            'price_max': price_max,
+            'hall': hall_name,
+        })
+
+    return jsonify({
+        'schedule': cinemas,
+        'date': date_str,
+    })
 
 
 @app.route('/api/cinema_schedule/<cinema_id>')
@@ -92,7 +132,10 @@ def get_cinema_schedule(cinema_id, date_str=None):
         date_str = datetime.today().strftime('%Y-%m-%d')
 
     cur = conn.cursor()
-    columns = ('id', 'ya_id', 'date', 'price_min', 'price_max', 'movie_title_ru', 'movie_id')
+    columns = (
+        'id', 'ya_id', 'date', 'price_min',
+        'price_max', 'movie_title_ru', 'movie_id'
+    )
     cur.execute("""
     SELECT
         s.session_id,
