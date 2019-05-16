@@ -15,9 +15,12 @@
             </h6>
 
             <div class="d-flex justify-content-between align-items-center">
-              <a :href="'/movie/' + movie.movie_id" class="btn btn-primary">
+              <router-link :to="{name: 'Movie', params: {
+                id: movie.movie_id,
+                date: date,
+              }}" class="btn btn-primary">
                 Билеты
-              </a>
+              </router-link>
 
               <h6 class="text-muted">
                 <span v-if="movie.rating">
@@ -34,7 +37,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import {currentMovies} from '@/api'
 
 export default {
   name: 'MainPage',
@@ -45,18 +48,9 @@ export default {
     }
   },
   created: function () {
-    // usually `this` works in Vue components to set data to the state and re-render the template
-    // saving `this` as `self` makes sure we still have access to all our component functions and state, even inside the
-    var self = this
-
-    axios
-      .get('http://127.0.0.1:5000/api/current_movies/77/2019-05-18')
-      .then(function (response) {
-        self.movies = response.data['movies']
-      })
-      .catch(function (error) {
-        // if an error occurs, print that error
-        console.log(error)
+    currentMovies(77, this.date)
+      .then(response => {
+        this.movies = response.data['movies']
       })
   }
 }
