@@ -34,26 +34,26 @@ func NewEventLoader(db *sql.DB) *EventLoader {
 }
 
 type EventDataItem struct {
-	EventID   string
-	KpID      int
-	TitleRU   string
-	TitleEN   string
-	Year      int
-	Duration  int
-	ReleaseRU afisha.Date
-	// KpRating       int
+	EventID        string
+	KpID           int
+	TitleRU        string
+	TitleOR        string
+	Year           int
+	Duration       int
+	Release        afisha.Date
 	AgeRestriction int
 	CountryCode    string
+	KpRating       int
 }
 
 type EventData []EventDataItem
 
 func (EventData) Fields() []string {
-	return []string{"ya_event_id", "kp_id", "title_ru", "title_en", "year", "duration", "release_ru", "age_restriction", "country_code"}
+	return []string{"ya_event_id", "kp_id", "title_ru", "title_or", "year", "duration", "release", "age_restriction", "country_code", "kp_rating"}
 }
 
 func (EventData) InsertFormat() (string, int) {
-	return "$%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d", 9
+	return "$%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d", 10
 }
 
 func (d EventData) Names() []string {
@@ -72,7 +72,7 @@ func (d EventData) Values(filter map[string]struct{}) []interface{} {
 			continue
 		}
 
-		var idata [9]interface{}
+		var idata [10]interface{}
 
 		idata[0] = item.EventID
 		if item.KpID != 0 {
@@ -81,8 +81,8 @@ func (d EventData) Values(filter map[string]struct{}) []interface{} {
 		if item.TitleRU != "" {
 			idata[2] = item.TitleRU
 		}
-		if item.TitleEN != "" {
-			idata[3] = item.TitleEN
+		if item.TitleOR != "" {
+			idata[3] = item.TitleOR
 		}
 		if item.Year != 0 {
 			idata[4] = item.Year
@@ -90,14 +90,17 @@ func (d EventData) Values(filter map[string]struct{}) []interface{} {
 		if item.Duration != 0 {
 			idata[5] = item.Duration
 		}
-		if !item.ReleaseRU.IsZero() {
-			idata[6] = item.ReleaseRU.String()
+		if !item.Release.IsZero() {
+			idata[6] = item.Release.String()
 		}
 		if item.AgeRestriction != 0 {
 			idata[7] = item.AgeRestriction
 		}
 		if item.CountryCode != "" {
 			idata[8] = item.CountryCode
+		}
+		if item.KpRating != 0 {
+			idata[9] = item.KpRating
 		}
 
 		res = append(res, idata[:]...)
@@ -176,6 +179,10 @@ func fetchAfisha(evID, afishaURL string) (*EventDataItem, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		return nil, errors.New("Status code is not 200")
+	}
+
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -204,10 +211,18 @@ func fetchAfisha(evID, afishaURL string) (*EventDataItem, error) {
 	}
 
 	getText := func(sel *goquery.Selection, selector string) string {
-		return strings.TrimSpace(sel.Find(selector).Text())
+		sel = sel.Find(selector)
+		if sel == nil {
+			return ""
+		}
+		return strings.TrimSpace(sel.Text())
 	}
 
 	item.AgeRestriction, _ = strconv.Atoi(strings.Trim(getText(doc.Selection, `[class=event-heading__content-rating]`), "+"))
+	kpRate, err := strconv.ParseFloat(getText(doc.Selection, `[class="arrow__text"]`), 32)
+	if err == nil {
+		item.KpRating = int(kpRate * 100)
+	}
 	item.TitleRU = getText(doc.Selection, `[class="event-heading__title"]`)
 
 	doc.Find(`[class="event-attributes__row"]`).Each(func(_ int, sel *goquery.Selection) {
@@ -216,7 +231,7 @@ func fetchAfisha(evID, afishaURL string) (*EventDataItem, error) {
 
 		switch key {
 		case "Оригинальное название":
-			item.TitleEN = value
+			item.TitleOR = value
 		case "Год производства":
 			item.Year, _ = strconv.Atoi(value)
 		case "Время":
@@ -230,12 +245,12 @@ func fetchAfisha(evID, afishaURL string) (*EventDataItem, error) {
 		case "Страна":
 			// item.CountryCode
 		case "Премьера":
-			item.ReleaseRU, err = parseRUDate(value)
+			item.Release, err = parseRUDate(value)
 			if err != nil {
 				log.Printf("Failed to parse (%v: %v): %v", key, value, err)
 			}
 
-		case "Режиссёр", "Композитор", "В ролях":
+		case "Режиссёр", "Продюсер", "Композитор", "В ролях":
 
 		default:
 			log.Printf("Unknown category: %v", key)
@@ -246,19 +261,22 @@ func fetchAfisha(evID, afishaURL string) (*EventDataItem, error) {
 }
 
 type yaEventInfo struct {
-	kpID int
-	url  string
+	kpID          int
+	kpRate        int
+	url           string
+	title         string
+	originalTitle string
 }
 
-// loadRepertoryKpIDs loads eventID=>kpID from repertories
-func loadRepertoryKpIDs() (map[string]int, error) {
+// loadRepertoryInfo loads evID=>info from repertories
+func loadRepertoryInfo() (map[string]yaEventInfo, error) {
 	repertoryFiles, err := filepath.Glob(path.Join(outDir, repertoriesDir, "*.json"))
 	if err != nil {
 		return nil, errors.Wrap(err, "Repertory files Glob failed: ")
 	}
 	log.Printf("Loading repertories from %d files", len(repertoryFiles))
 
-	result := map[string]int{}
+	result := map[string]yaEventInfo{}
 
 	for _, fn := range repertoryFiles {
 		var items []afisha.RepertoryItem
@@ -269,18 +287,21 @@ func loadRepertoryKpIDs() (map[string]int, error) {
 		}
 
 		for _, item := range items {
-			evID := item.Event.ID
-			kpID := kpIDFromURL(item.Event.Kinopoisk.URL)
-
-			if kpID == 0 {
-				continue
-			}
+			event := item.Event
+			evID := event.ID
+			kpID := kpIDFromURL(event.Kinopoisk.URL)
 
 			if _, ok := result[evID]; ok {
 				continue
 			}
 
-			result[evID] = kpID
+			result[evID] = yaEventInfo{
+				kpID:          kpID,
+				kpRate:        int(event.Kinopoisk.Value * 10),
+				title:         event.Title,
+				originalTitle: event.OriginalTitle,
+				url:           event.URL,
+			}
 		}
 	}
 
@@ -303,22 +324,14 @@ func loadEvents(events map[string]yaEventInfo) (map[string]int, error) {
 		return nil, err
 	}
 
-	kpIDMap, err := loadRepertoryKpIDs()
+	repetoryMap, err := loadRepertoryInfo()
 	if err != nil {
 		return nil, err
 	}
 
-	i = 0
-	for evID, info := range events {
-		if info.kpID != 0 {
-			continue
-		}
-
-		if kpID, ok := kpIDMap[evID]; ok {
-			info.kpID = kpID
+	for evID := range events {
+		if info, ok := repetoryMap[evID]; ok {
 			events[evID] = info
-		} else {
-			i++
 		}
 	}
 
@@ -329,25 +342,41 @@ func loadEvents(events map[string]yaEventInfo) (map[string]int, error) {
 			continue
 		}
 
-		item := &EventDataItem{
-			EventID: evID,
-			KpID:    info.kpID,
+		item := EventDataItem{
+			EventID:  evID,
+			KpID:     info.kpID,
+			KpRating: info.kpRate,
+			TitleRU:  info.title,
+			TitleOR:  info.originalTitle,
 		}
 
-		if info.kpID == 0 {
-			log.Printf("kpID not found for event (%s) and isn't in repertory, fetching by url (%s)", evID, info.url)
-			item, err = fetchAfisha(evID, info.url)
-			if err != nil {
-				log.Printf("Failed to fetch kp id (skipping event %s!): %v", evID, err)
-				continue
-			}
-
-			// Save it in case we ever need it
-			info.kpID = item.KpID
-			events[evID] = info
+		afItem, err := fetchAfisha(evID, info.url)
+		if err != nil {
+			log.Printf("Failed to fetchAfisha (event=%s): %v", evID, err)
+			createEvents = append(createEvents, item)
+			continue
 		}
 
-		createEvents = append(createEvents, *item)
+		if afItem.KpID != 0 {
+			info.kpID = afItem.KpID
+		} else {
+			afItem.KpID = info.kpID
+		}
+		if afItem.TitleRU != "" {
+			info.title = afItem.TitleRU
+		} else {
+			afItem.TitleRU = info.title
+		}
+
+		if afItem.TitleOR != "" {
+			info.originalTitle = afItem.TitleOR
+		} else {
+			afItem.TitleOR = info.originalTitle
+		}
+
+		// Save info in case we ever need it
+		events[evID] = info
+		createEvents = append(createEvents, *afItem)
 	}
 
 	if len(createEvents) == 0 {

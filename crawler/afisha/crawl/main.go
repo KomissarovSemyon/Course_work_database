@@ -164,6 +164,10 @@ func crawlPlaceSchedules(dateStr string) error {
 			continue
 		}
 
+		if len(schd.Items) == 0 {
+			log.Printf("WARN: Failed to load schedules for place %v (city=%v), skipping: %v", pl.placeID, pl.city, "no items received")
+		}
+
 		util.MarshalIntoFile(path.Join(outPath, pl.placeID+".json"), schd.Items)
 		if err != nil {
 			log.Printf("WARN: Failed to save schedules for place %v (city=%v), skipping: %v", pl.placeID, pl.city, err)

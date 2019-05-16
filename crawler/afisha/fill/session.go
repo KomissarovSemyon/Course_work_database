@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -32,6 +33,14 @@ type Session struct {
 	Date     time.Time
 	PriceMin int
 	PriceMax int
+}
+
+func (s *Session) UniqueKey() string {
+	if s.YaID != "" {
+		return s.YaID
+	}
+
+	return fmt.Sprintf("%v;%d;%s;%v", s.Hall, s.CinemaID, s.EventID, s.Date)
 }
 
 func InsertSessions(db *sql.DB, sessions []Session) error {
@@ -143,6 +152,8 @@ func loadSessions(date afisha.Date) ([]Session, error) {
 
 	yaEvents := map[string]yaEventInfo{}
 
+	antiDupe := map[string]struct{}{}
+
 	for _, fn := range sessionFiles {
 		var items []afisha.ScheduleItem
 
@@ -150,6 +161,7 @@ func loadSessions(date afisha.Date) ([]Session, error) {
 			log.Printf("Failed to load file %v, skipping: %v", fn, err)
 			continue
 		}
+		log.Printf("%d items for %s", len(items), fn)
 
 		city, placeYaID := parseSessionFilename(fn)
 		placeID, ok := placeMap[placeYaID]
@@ -200,7 +212,7 @@ func loadSessions(date afisha.Date) ([]Session, error) {
 						continue
 					}
 
-					sessions = append(sessions, Session{
+					session := Session{
 						Hall:     sess.HallName,
 						CinemaID: placeID,
 						CityID:   cityID,
@@ -210,7 +222,15 @@ func loadSessions(date afisha.Date) ([]Session, error) {
 						Date:     dateTime,
 						PriceMin: sess.Ticket.Price.Min,
 						PriceMax: sess.Ticket.Price.Max,
-					})
+					}
+
+					antiDupeKey := session.UniqueKey()
+					if _, ok := antiDupe[antiDupeKey]; ok {
+						log.Printf("Duplicate session detected, skipping: %v", antiDupeKey)
+					} else {
+						antiDupe[antiDupeKey] = struct{}{}
+						sessions = append(sessions, session)
+					}
 				}
 			}
 		}
