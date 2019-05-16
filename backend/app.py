@@ -83,5 +83,40 @@ def get_movie_schedule(city_id, movie_id, date_str=None):
     return jsonify(result)
 
 
+@app.route('/api/cinema_schedule/<cinema_id>')
+@app.route('/api/cinema_schedule/<cinema_id>/<date_str>')
+def get_cinema_schedule(cinema_id, date_str=None):
+    if date_str is None:
+        date_str = datetime.today().strftime('%Y-%m-%d')
+
+    cur = conn.cursor()
+    columns = ('id', 'ya_id', 'date', 'price_min', 'price_max', 'movie_title_ru', 'movie_id')
+    cur.execute("""
+    SELECT
+        s.session_id,
+        s.ya_id,
+        s.date,
+        s.price_min,
+        s.price_max,
+        m.title_ru,
+        m.movie_id
+    FROM sessions s
+    JOIN cinemas c on s.cinema_id = c.cinema_id
+    JOIN movies m on s.movie_id = m.movie_id
+    WHERE DATE(s.date) = %(date)s AND
+        c.cinema_id = %(cinema_id)s
+    """, {
+        'date': date_str,
+        'cinema_id': cinema_id
+    })
+
+    result = {
+        'sessions': [dict(zip(columns, i)) for i in cur.fetchall()],
+        'date': date_str
+    }
+
+    return jsonify(result)
+
+
 if __name__ == '__main__':
     app.run()
