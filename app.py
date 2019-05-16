@@ -11,7 +11,7 @@ api = Api(app)
 
 
 class CurrentMovies(Resource):
-    def get(self):
+    def get(self, city_id):
         columns = ['id', 'title', 'rating', 'session_count']
         conn = db_connect.connect()
         query = conn.execute("SELECT DISTINCT MAX(m.movie_id), MAX(m.title_ru), MAX(m.kp_rating), COUNT(s.session_id)\
@@ -19,14 +19,14 @@ class CurrentMovies(Resource):
                               JOIN movies m on m.movie_id = s.movie_id\
                               JOIN cinemas c on s.cinema_id = c.cinema_id\
                               WHERE DATE(s.date) = '2019-05-17' AND\
-                                    c.city_id = 53\
+                                    c.city_id = %d\
                               GROUP BY s.movie_id\
-                              ORDER BY COUNT(s.session_id) DESC")
+                              ORDER BY COUNT(s.session_id) DESC" % int(city_id))
         result = {'data': [dict(zip(columns, i)) for i in query.cursor.fetchall()]}
         return jsonify(result)
 
 
-api.add_resource(CurrentMovies, '/current_movies')
+api.add_resource(CurrentMovies, '/current_movies/<city_id>')
 
 if __name__ == '__main__':
     app.run()
