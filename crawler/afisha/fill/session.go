@@ -161,7 +161,6 @@ func loadSessions(date afisha.Date) ([]Session, error) {
 			log.Printf("Failed to load file %v, skipping: %v", fn, err)
 			continue
 		}
-		log.Printf("%d items for %s", len(items), fn)
 
 		city, placeYaID := parseSessionFilename(fn)
 		placeID, ok := placeMap[placeYaID]
