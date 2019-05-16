@@ -3,12 +3,14 @@ from json import dumps
 from flask_jsonpify import jsonify
 import psycopg2
 from datetime import datetime
+from flask_cors import CORS
 
 pg_url = 'postgres://kino:antman_and_thanos@localhost/kino?sslmode=disable'
 app = Flask(__name__)
 conn = psycopg2.connect(pg_url)
 
 app.config['JSON_AS_ASCII'] = False
+CORS(app)
 
 @app.route('/api/current_movies/<city_id>')
 @app.route('/api/current_movies/<city_id>/<date_str>')
