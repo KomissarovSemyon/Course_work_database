@@ -43,22 +43,22 @@ create table if not exists cities
 
 create table if not exists movies
 (
-    movie_id        int      not null
+    movie_id        int     not null
         generated always as identity
         primary key,
 
-    -- Movie title in Russian
-    title_ru        varchar  not null,
+    -- Russian movie title
+    title_ru        varchar,
 
-    -- Movie title in English
-    title_en        varchar  not null,
+    -- Original movie title
+    title_or        varchar,
 
     -- Release Year
     year            smallint,
     -- Duration in seconds
-    duration        smallint not null,
+    duration        smallint,
     -- Release Date in Russia
-    release_ru      date,
+    release         date,
     -- kinopoisk.ru ID
     kp_id           int,
     -- rating on kinopoisk.ru
@@ -73,12 +73,12 @@ create table if not exists movies
     -- our rating: current rating
     rating          smallint,
     -- and number of votes
-    rating_count    int,
+    rating_count    int     not null default 0,
 
     -- minimum age
     age_restriction smallint,
 
-    country_code    char(2)  references countries (country_code) on delete set null
+    country_code    char(2) references countries (country_code) on delete set null
 );
 
 create index if not exists movies_rating_index
