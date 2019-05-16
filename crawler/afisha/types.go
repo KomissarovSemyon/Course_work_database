@@ -68,6 +68,15 @@ func ParseDate(value string) (Date, error) {
 	return Date(t), err
 }
 
+// MakeDate contstructs Date from Year, Month and Day
+func MakeDate(year int, month time.Month, day int) Date {
+	return Date(time.Date(year, month, day, 0, 0, 0, 0, time.UTC))
+}
+
+func (d Date) IsZero() bool {
+	return time.Time(d).IsZero()
+}
+
 func (d Date) String() string {
 	return time.Time(d).Format(dateLayout)
 }
@@ -190,6 +199,8 @@ type TicketInfo struct {
 	ID    string     `json:"id"`
 	Price PriceRange `json:"price"`
 }
+
+const DateTimeLayout = "2006-01-02T15:04:05"
 
 // ScheduleSession holds info about exact session in schedule
 type ScheduleSession struct {

@@ -2,200 +2,64 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
-	"strconv"
-	"strings"
-	"sync"
 )
 
 type CityLoader struct {
-	cache map[string]int
-	mu    sync.RWMutex
-	db    *sql.DB
+	Loader
 }
 
 func NewCityLoader(db *sql.DB) *CityLoader {
 	return &CityLoader{
-		cache: make(map[string]int),
-		db:    db,
+		Loader: *NewLoader(db, LoaderConfig{
+			Table:     "cities",
+			FieldName: "ya_name",
+			FieldID:   "city_id",
+		}),
 	}
 }
 
-func (l *CityLoader) CityID(name string) (int, error) {
-	l.mu.RLock()
-	if id, ok := l.cache[name]; ok {
-		l.mu.RUnlock()
-		return id, nil
-	}
-	l.mu.RUnlock()
-
-	row := l.db.QueryRow("SELECT city_id FROM cities WHERE ya_name = $1", name)
-
-	var id int
-	err := row.Scan(&id)
-	if err != nil {
-		return 0, err
-	}
-
-	l.mu.Lock()
-	l.cache[name] = id
-	l.mu.Unlock()
-
-	return id, nil
-}
-
-func (l *CityLoader) CityIDs(names []string) (map[string]int, error) {
-	results := map[string]int{}
-
-	var missNames []string
-
-	// Only unique names
-	unames := make(map[string]struct{})
-	for _, name := range names {
-		unames[name] = struct{}{}
-	}
-
-	l.mu.RLock()
-	for name := range unames {
-		if id, ok := l.cache[name]; ok {
-			results[name] = id
-		} else {
-			missNames = append(missNames, name)
-		}
-	}
-	l.mu.RUnlock()
-
-	if len(missNames) == 0 {
-		return results, nil
-	}
-
-	parts := make([]string, len(missNames))
-	inames := make([]interface{}, len(missNames))
-
-	for i := 0; i != len(missNames); i++ {
-		parts[i] = "$" + strconv.Itoa(i+1)
-		inames[i] = missNames[i]
-	}
-
-	statement := "SELECT city_id, ya_name FROM cities WHERE ya_name IN (" + strings.Join(parts, ",") + ")"
-
-	rows, err := l.db.Query(statement, inames...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	for rows.Next() {
-		var id int
-		var name string
-
-		if err := rows.Scan(&id, &name); err != nil {
-			return nil, err
-		}
-
-		results[name] = id
-		l.cache[name] = id
-	}
-
-	return results, nil
-}
-
-type CityData struct {
+type CityDataItem struct {
 	CountryCode [2]byte
 	Name        string
 	YaName      string
 	TimeZoneID  int
 }
 
-// XXX: CopyIn?
-func (l *CityLoader) InsertCities(cities []CityData) (map[string]int, error) {
-	if len(cities) == 0 {
-		return map[string]int{}, nil
-	}
+type CityData []CityDataItem
 
-	parts := make([]string, len(cities))
-	idata := make([]interface{}, len(cities)*4)
-
-	for i, city := range cities {
-		ii := i * 4
-		parts[i] = fmt.Sprintf("( $%d, $%d, $%d, $%d )", ii+1, ii+2, ii+3, ii+4)
-
-		idata[ii+0] = string(city.CountryCode[:])
-		idata[ii+1] = city.Name
-		idata[ii+2] = city.YaName
-		idata[ii+3] = city.TimeZoneID
-	}
-
-	statement := "INSERT INTO cities (country_code, name, ya_name, timezone_id) VALUES " +
-		strings.Join(parts, ",") +
-		" RETURNING city_id, ya_name"
-
-	rows, err := l.db.Query(statement, idata...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	results := map[string]int{}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	for rows.Next() {
-		var id int
-		var name string
-
-		if err := rows.Scan(&id, &name); err != nil {
-			return nil, err
-		}
-
-		l.cache[name] = id
-		results[name] = id
-	}
-
-	return results, nil
+func (CityData) Fields() []string {
+	return []string{"country_code", "name", "ya_name", "timezone_id"}
 }
 
-func (l *CityLoader) CityIDsCreating(cities []CityData) (map[string]int, error) {
-	names := make([]string, len(cities))
-	for i, city := range cities {
-		names[i] = city.YaName
-	}
+func (CityData) InsertFormat() (string, int) {
+	return "$%d, $%d, $%d, $%d", 4
+}
 
-	result, err := l.CityIDs(names)
-	if err != nil {
-		return nil, err
+func (d CityData) Names() []string {
+	res := make([]string, len(d))
+	for i := range d {
+		res[i] = d[i].YaName
 	}
+	return res
+}
 
-	createThese := map[string]*CityData{}
-	for i := 0; i != len(cities); i++ {
-		city := &cities[i]
-		if _, ok := result[city.YaName]; !ok {
-			createThese[city.YaName] = city
+func (d CityData) Values(filter map[string]struct{}) []interface{} {
+	var res []interface{}
+
+	for _, item := range d {
+		if _, ok := filter[item.YaName]; !ok {
+			continue
 		}
+
+		var idata [4]interface{}
+
+		idata[0] = string(item.CountryCode[:])
+		idata[1] = item.Name
+		idata[2] = item.YaName
+		idata[3] = item.TimeZoneID
+
+		res = append(res, idata[:]...)
 	}
 
-	if len(createThese) == 0 {
-		return result, nil
-	}
-
-	insertCities := make([]CityData, len(createThese))
-	i := 0
-	for _, city := range createThese {
-		insertCities[i] = *city
-		i++
-	}
-
-	inserted, err := l.InsertCities(insertCities)
-	if err != nil {
-		return nil, err
-	}
-
-	for name, id := range inserted {
-		result[name] = id
-	}
-
-	return result, nil
+	return res
 }

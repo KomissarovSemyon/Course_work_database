@@ -2,107 +2,30 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
-	"strconv"
-	"strings"
-	"sync"
+	"log"
+	"path"
+	"path/filepath"
+
+	"github.com/pkg/errors"
+	"github.com/stek29/kr/crawler/afisha"
+	"github.com/stek29/kr/crawler/afisha/util"
 )
 
 type PlaceLoader struct {
-	cache map[string]int
-	mu    sync.RWMutex
-	db    *sql.DB
+	Loader
 }
 
 func NewPlaceLoader(db *sql.DB) *PlaceLoader {
 	return &PlaceLoader{
-		cache: make(map[string]int),
-		db:    db,
+		Loader: *NewLoader(db, LoaderConfig{
+			Table:     "cinemas",
+			FieldName: "ya_id",
+			FieldID:   "cinema_id",
+		}),
 	}
 }
 
-func (l *PlaceLoader) PlaceID(yaID string) (int, error) {
-	l.mu.RLock()
-	if id, ok := l.cache[yaID]; ok {
-		l.mu.RUnlock()
-		return id, nil
-	}
-	l.mu.RUnlock()
-
-	row := l.db.QueryRow("SELECT cinema_id FROM cinemas WHERE ya_id = $1", yaID)
-
-	var id int
-	err := row.Scan(&id)
-	if err != nil {
-		return 0, err
-	}
-
-	l.mu.Lock()
-	l.cache[yaID] = id
-	l.mu.Unlock()
-
-	return id, nil
-}
-
-func (l *PlaceLoader) PlaceIDs(yaIDs []string) (map[string]int, error) {
-	results := map[string]int{}
-
-	// Only unique names
-	uids := make(map[string]struct{})
-	for _, yaID := range yaIDs {
-		uids[yaID] = struct{}{}
-	}
-
-	var missIDs []string
-	l.mu.RLock()
-	for yaID := range uids {
-		if id, ok := l.cache[yaID]; ok {
-			results[yaID] = id
-		} else {
-			missIDs = append(missIDs, yaID)
-		}
-	}
-	l.mu.RUnlock()
-
-	if len(missIDs) == 0 {
-		return results, nil
-	}
-
-	parts := make([]string, len(missIDs))
-	inames := make([]interface{}, len(missIDs))
-
-	for i := 0; i != len(missIDs); i++ {
-		parts[i] = "$" + strconv.Itoa(i+1)
-		inames[i] = missIDs[i]
-	}
-
-	statement := "SELECT cinema_id, ya_id FROM cinemas WHERE ya_id IN (" + strings.Join(parts, ",") + ")"
-
-	rows, err := l.db.Query(statement, inames...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	for rows.Next() {
-		var id int
-		var yaID string
-
-		if err := rows.Scan(&id, &yaID); err != nil {
-			return nil, err
-		}
-
-		results[yaID] = id
-		l.cache[yaID] = id
-	}
-
-	return results, nil
-}
-
-type PlaceData struct {
+type PlaceDataItem struct {
 	CityID  int
 	Name    string
 	Address string
@@ -111,94 +34,165 @@ type PlaceData struct {
 	YaID    string
 }
 
-// XXX: CopyIn?
-func (l *PlaceLoader) InsertPlaces(places []PlaceData) (map[string]int, error) {
-	if len(places) == 0 {
-		return map[string]int{}, nil
-	}
+type PlaceData []PlaceDataItem
 
-	parts := make([]string, len(places))
-	idata := make([]interface{}, len(places)*6)
-
-	for i, place := range places {
-		ii := i * 6
-		parts[i] = fmt.Sprintf("( $%d, $%d, point($%d, $%d), $%d, $%d)", ii+1, ii+2, ii+3, ii+4, ii+5, ii+6)
-
-		idata[ii+0] = place.Name
-		idata[ii+1] = place.Address
-		idata[ii+2] = place.Lat
-		idata[ii+3] = place.Long
-		idata[ii+4] = place.CityID
-		idata[ii+5] = place.YaID
-	}
-
-	statement := "INSERT INTO cinemas (name, address, loc, city_id, ya_id) VALUES " +
-		strings.Join(parts, ",") +
-		" RETURNING cinema_id, ya_id"
-
-	rows, err := l.db.Query(statement, idata...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	results := map[string]int{}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	for rows.Next() {
-		var id int
-		var yaID string
-
-		if err := rows.Scan(&id, &yaID); err != nil {
-			return nil, err
-		}
-
-		results[yaID] = id
-		l.cache[yaID] = id
-	}
-
-	return results, nil
+func (PlaceData) Fields() []string {
+	return []string{"name", "address", "loc", "city_id", "ya_id"}
 }
 
-func (l *PlaceLoader) PlaceIDsCreating(places []PlaceData) (map[string]int, error) {
-	yaIDs := make([]string, len(places))
-	for i, place := range places {
-		yaIDs[i] = place.YaID
+func (PlaceData) InsertFormat() (string, int) {
+	return "$%d, $%d, point($%d, $%d), $%d, $%d", 6
+}
+
+func (d PlaceData) Names() []string {
+	res := make([]string, len(d))
+	for i := range d {
+		res[i] = d[i].YaID
+	}
+	return res
+}
+
+func (d PlaceData) Values(filter map[string]struct{}) []interface{} {
+	var res []interface{}
+
+	for _, item := range d {
+		if _, ok := filter[item.YaID]; !ok {
+			continue
+		}
+
+		var idata [6]interface{}
+
+		idata[0] = item.Name
+		idata[1] = item.Address
+		idata[2] = item.Lat
+		idata[3] = item.Long
+		idata[4] = item.CityID
+		idata[5] = item.YaID
+
+		res = append(res, idata[:]...)
 	}
 
-	result, err := l.PlaceIDs(yaIDs)
+	return res
+}
+
+// XXX: duplicated in crawl
+func loadPlaces() ([]afisha.Place, error) {
+	placeFiles, err := filepath.Glob(path.Join(outDir, placesDir, "*"))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Place files Glob failed: ")
+	}
+	log.Printf("Loading places from %v files", len(placeFiles))
+
+	var places []afisha.Place
+
+	for _, fn := range placeFiles {
+		var chunk []afisha.Place
+		if err := util.UnmarshalFromFile(fn, &chunk); err != nil {
+			log.Printf("Failed to load file %v, skipping: %v", fn, err)
+			continue
+		}
+
+		places = append(places, chunk...)
 	}
 
-	createThese := map[string]*PlaceData{}
-	for i := 0; i != len(places); i++ {
-		pl := &places[i]
-		if _, ok := result[pl.YaID]; !ok {
-			createThese[pl.YaID] = pl
+	return places, nil
+}
+
+func fillPlaces(db *sql.DB) error {
+	places, err := loadPlaces()
+	if err != nil {
+		return err
+	}
+	log.Printf("Loaded %d places", len(places))
+
+	citymap := map[string]afisha.City{}
+	tzset := map[string]struct{}{}
+	for _, pl := range places {
+		if _, ok := citymap[pl.City.Name]; !ok {
+			citymap[pl.City.Name] = pl.City
+			tzset[pl.City.TimeZone] = struct{}{}
 		}
 	}
 
-	if len(createThese) == 0 {
-		return result, nil
-	}
-
-	insertPlaces := make([]PlaceData, len(createThese))
+	tzs := make([]string, len(tzset))
 	i := 0
-	for _, pl := range createThese {
-		insertPlaces[i] = *pl
+	for tz := range tzset {
+		tzs[i] = tz
 		i++
 	}
 
-	inserted, err := l.InsertPlaces(insertPlaces)
+	tzmap, err := tzLoader.GetIDs(tzs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	for name, id := range inserted {
-		result[name] = id
+	if len(tzmap) < len(tzs) {
+		log.Printf("Expected to get %d timezones, but got %d", len(tzs), len(tzmap))
+		for _, tz := range tzs {
+			if _, ok := tzmap[tz]; !ok {
+				log.Printf("TZ missing: %s", tz)
+			}
+		}
+		return errors.Errorf("Cant find some timezones")
 	}
 
-	return result, nil
+	log.Printf("Loaded %d timezones", len(tzmap))
+
+	cities := make(CityData, len(citymap))
+	i = 0
+	for _, city := range citymap {
+		var ok bool
+
+		cities[i].CountryCode = [...]byte{'R', 'U'}
+		cities[i].Name = city.Name
+		cities[i].YaName = city.ID
+		cities[i].TimeZoneID, ok = tzmap[city.TimeZone]
+		if !ok {
+			panic(errors.Errorf("Unexpected cache miss for tz: %v", city.TimeZone))
+		}
+		i++
+	}
+
+	log.Printf("Saving %d cities", len(cities))
+	cityIDmap, err := cityLoader.GetIDsCreating(cities)
+	if err != nil {
+		return err
+	}
+
+	var placeDatas PlaceData
+
+	for _, pl := range places {
+		cid, ok := cityIDmap[pl.City.ID]
+		if !ok {
+			panic(errors.Errorf("Unexpected cache miss for city: %v", pl.City))
+		}
+
+		placeDatas = append(placeDatas, PlaceDataItem{
+			CityID:  cid,
+			Name:    pl.Title,
+			Address: pl.Address,
+			Long:    pl.Coordinates.Longitude,
+			Lat:     pl.Coordinates.Latitude,
+			YaID:    pl.ID,
+		})
+	}
+
+	const chunkSize = 100
+	log.Printf("Saving %d places in chunks of %d", len(placeDatas), chunkSize)
+	for i := 0; i < len(placeDatas); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(placeDatas) {
+			end = len(placeDatas)
+		}
+
+		chunk := placeDatas[i:end]
+
+		_, err := placeLoader.GetIDsCreating(chunk)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
