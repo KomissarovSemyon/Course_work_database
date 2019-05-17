@@ -163,8 +163,8 @@ def get_cinema_schedule(cinema_id, date_str=None):
     return jsonify(result)
 
 
-@app.route('/api/top_movies/<city_id>')
-@app.route('/api/top_movies/<city_id>/<date_str>')
+@app.route('/api/top_cinemas/<city_id>')
+@app.route('/api/top_cinemas/<city_id>/<date_str>')
 def get_top_movies(city_id, date_str=None):
     if date_str is None:
         date_str = datetime.today().strftime('%Y-%m-%d')
