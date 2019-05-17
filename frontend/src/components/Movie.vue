@@ -1,16 +1,21 @@
 <template>
   <div class="container">
-    <div v-for="cinema in schedule" v-bind:key="cinema.id">
-      <div class="lead">
-        {{cinema.name}}
-      </div>
-      <div class="lead">
-        {{cinema.address}}
-      </div>
+    <div
+      v-for="cinema in schedule"
+      :key="cinema.id">
+      <h3>
+        {{ cinema.name }}
+      </h3>
+      <h6 class="muted">
+        {{ cinema.address }}
+      </h6>
 
-      <div class="row" v-for="session in cinema.sessions" v-bind:key="session.id">
+      <div
+        v-for="session in cinema.sessions"
+        :key="session.id"
+        class="row">
         <pre>
-          {{JSON.stringify(session, null, 2)}}
+          {{ JSON.stringify(session, null, 2) }}
         </pre>
       </div>
       <hr>
@@ -19,7 +24,7 @@
 </template>
 
 <script>
-import {movieSchedule} from '@/api'
+import { movieSchedule } from '@/api'
 
 export default {
   name: 'Movie',

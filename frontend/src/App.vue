@@ -1,20 +1,31 @@
 <template>
   <div id="app">
-    <header class="d-flex flex-column flex-md-row align-items-center p-3 px-md-4 mb-3 bg-white border-bottom box-shadow">
+    <header
+      class="d-flex flex-row align-items-center justify-content-between p-3 px-md-4 mb-3 bg-white border-bottom box-shadow"
+    >
       <h5 class="my-0 mr-md-auto font-weight-normal">
         <router-link :to="{ name: 'MainPage'}">
           Кукаремуви
         </router-link>
       </h5>
 
-      <a class="btn btn-outline-danger" href="#" v-on:click="userID=0" v-if="userID">
+      <a
+        v-if="userID"
+        class="btn btn-outline-danger"
+        href="#"
+        @click="userID = 0">
         Выйти
       </a>
-      <a class="btn btn-outline-primary" href="#" v-on:click="userID=1" v-else>
+      <a
+        v-else
+        class="btn btn-outline-primary"
+        href="#"
+        @click="userID = 1"
+      >
         Войти
       </a>
     </header>
-    <router-view/>
+    <router-view />
   </div>
 </template>
 
@@ -31,10 +42,9 @@ export default {
 
 <style>
 #app {
-  font-family: 'Avenir', Helvetica, Arial, sans-serif;
+  font-family: Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-align: center;
   color: #2c3e50;
 }
 
