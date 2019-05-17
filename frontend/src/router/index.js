@@ -9,17 +9,12 @@ export default new Router({
   mode: 'history',
   routes: [
     {
-      path: '/',
+      path: '/:date?',
       name: 'MainPage',
       component: MainPage
     },
     {
-      path: '/movie/:id',
-      name: 'Movie',
-      component: Movie
-    },
-    {
-      path: '/movie/:id/:date',
+      path: '/movie/:id/:date?',
       name: 'Movie',
       component: Movie
     }

@@ -1,6 +1,9 @@
 <template>
   <div class="main-page">
     <div class="container">
+      <h1>
+        Кино в {{ city }} ({{ date }})
+      </h1>
       <div class="row justify-content-center">
         <div
           v-for="movie in movies"
@@ -53,11 +56,14 @@ export default {
   data: function () {
     return {
       movies: [],
-      date: '2019-05-18'
+      city: 77,
+      date: null
     }
   },
   created: function () {
-    currentMovies(77, this.date)
+    this.date = this.$route.params.date
+
+    currentMovies(this.city, this.date)
       .then(response => {
         this.movies = response.data['movies']
       })
