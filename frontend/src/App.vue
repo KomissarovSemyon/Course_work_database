@@ -4,7 +4,9 @@
       class="d-flex flex-row align-items-center justify-content-between p-3 px-md-4 mb-3 bg-white border-bottom box-shadow"
     >
       <h5 class="my-0 mr-md-auto font-weight-normal">
-        <router-link :to="{ name: 'MainPage'}">
+        <router-link
+          id="link-main"
+          :to="{ name: 'MainPage'}">
           Кукаремуви
         </router-link>
       </h5>
@@ -50,5 +52,9 @@ export default {
 
 .box-shadow {
   box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+}
+
+#link-main, #link-main:hover, #link-main:focus {
+    text-decoration: none;
 }
 </style>
