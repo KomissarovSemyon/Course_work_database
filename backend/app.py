@@ -119,6 +119,8 @@ def get_movie_schedule(city_id, movie_id, date_str=None):
             'hall': hall_name,
         })
 
+    cur.close()
+
     return jsonify({
         'schedule': cinemas,
         'date': date_str,
@@ -160,12 +162,14 @@ def get_cinema_schedule(cinema_id, date_str=None):
         'date': date_str
     }
 
+    cur.close()
+
     return jsonify(result)
 
 
 @app.route('/api/top_cinemas/<city_id>')
 @app.route('/api/top_cinemas/<city_id>/<date_str>')
-def get_top_movies(city_id, date_str=None):
+def get_top_cinemas(city_id, date_str=None):
     if date_str is None:
         date_str = datetime.today().strftime('%Y-%m-%d')
 
@@ -193,6 +197,44 @@ def get_top_movies(city_id, date_str=None):
         'date': date_str,
         'city_id': city_id
     }
+
+    cur.close()
+
+    return jsonify(result)
+
+
+@app.route('/api/movie/<movie_id>')
+def get_movie_info(movie_id):
+    cur = conn.cursor()
+    columns = (
+        'title_ru', 'title_or', 'year', 'duration', 'release',
+        'kp_id', 'kp_rating', 'rating', 'rating_count',
+        'country_name_ru', 'country_name_en'
+    )
+    cur.execute("""
+    SELECT m.title_ru,
+           m.title_or,
+           m.year,
+           m.duration,
+           m.release,
+           m.kp_id,
+           m.kp_rating,
+           m.rating,
+           m.rating_count,
+           c.name_ru,
+           c.name_en
+    FROM movies m
+    LEFT JOIN countries c on m.country_code = c.country_code
+    WHERE movie_id = %(movie_id)s
+    """, {
+        'movie_id': movie_id
+    })
+
+    result = dict(zip(columns, cur.fetchone()))
+    result['kp_link'] = 'https://www.kinopoisk.ru/film/' + str(result['kp_id'])
+    del result['kp_id']
+
+    cur.close()
 
     return jsonify(result)
 
