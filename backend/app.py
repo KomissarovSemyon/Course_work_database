@@ -232,11 +232,37 @@ def get_movie_info(movie_id):
 
     result = dict(zip(columns, cur.fetchone()))
     result['kp_link'] = 'https://www.kinopoisk.ru/film/' + str(result['kp_id'])
+    result['movie_id'] = int(movie_id)
     del result['kp_id']
 
     cur.close()
 
     return jsonify(result)
+
+
+@app.route('/api/cinema/<cinema_id>')
+def get_cinema_info(cinema_id):
+    cur = conn.cursor()
+    columns = ('name', 'address', 'location', 'city_name')
+    cur.execute("""
+    SELECT c.name,
+        c.address,
+        c.loc,
+        ct.name
+    FROM cinemas c
+    JOIN cities ct on c.city_id = ct.city_id
+    WHERE c.cinema_id = %(cinema_id)s
+    """, {
+        'cinema_id': cinema_id
+    })
+
+    result = dict(zip(columns, cur.fetchone()))
+    result['cinema_id'] = int(cinema_id)
+
+    cur.close()
+
+    return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run()
