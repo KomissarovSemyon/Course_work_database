@@ -5,6 +5,7 @@ import psycopg2
 from datetime import datetime
 from flask_cors import CORS
 import base64
+import hashlib
 
 pg_url = 'postgres://kino:antman_and_thanos@localhost/kino?sslmode=disable'
 app = Flask(__name__)
@@ -262,6 +263,33 @@ def get_cinema_info(cinema_id):
     cur.close()
 
     return jsonify(result)
+
+
+@app.route('/api/register', methods=['POST'])
+def register():
+    email = request.form['email']
+    city_id = request.form['city_id']
+    password = request.form['password']
+
+    cur = conn.cursor()
+    pass_hash = hashlib.md5(password.encode('utf-8')).hexdigest()
+
+    try:
+        cur.execute("""
+        INSERT into users (email, password_hash, city_id)
+        VALUES (%(email)s, %(pass_hash)s, %(city_id)s)
+        """, {
+            'email': email,
+            'pass_hash': pass_hash,
+            'city_id': city_id,
+        })
+        status_code = 200
+    except psycopg2.errors.UniqueViolation:
+        # This email already in database
+        status_code = 300
+
+    cur.close()
+    return jsonify({'status': status_code})
 
 
 if __name__ == '__main__':
