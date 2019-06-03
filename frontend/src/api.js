@@ -37,9 +37,23 @@ const currentMovies = function (cityID, date) {
   return get(path)
 }
 
+const cinemaInfo = function (cinemaID) {
+  let path = `cinema/${cinemaID}`
+  return get(path)
+}
+
+const movieInfo = function (cinemaID) {
+  let path = `movie/${cinemaID}`
+  return get(path)
+}
+
 export {
   movieSchedule,
   cinemaSchedule,
+
   currentMovies,
+  cinemaInfo,
+  movieInfo,
+
   get
 }

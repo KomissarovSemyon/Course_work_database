@@ -1,5 +1,19 @@
 <template>
   <div class="container">
+    <div>
+      <h3>
+        {{ info.name }}
+      </h3>
+      <a :href="info.location_href">
+        <h6 class="muted">
+          {{ info.address }}
+        </h6>
+        <h6 class="small muted">
+          {{ info.city_name }}
+        </h6>
+      </a>
+    </div>
+    <hr>
     <div
       v-for="movie in schedule"
       :key="movie.id">
@@ -43,7 +57,7 @@
 </template>
 
 <script>
-import { cinemaSchedule } from '@/api'
+import { cinemaSchedule, cinemaInfo } from '@/api'
 
 export default {
   name: 'Movie',
@@ -51,7 +65,10 @@ export default {
     return {
       cinemaID: 0,
       schedule: [],
-      date: null
+      date: null,
+      info: {
+        name: 'hih'
+      }
     }
   },
 
@@ -69,6 +86,13 @@ export default {
             }).sort((a, b) => a.date - b.date)
             return c
           })
+      })
+
+    cinemaInfo(this.cinemaID)
+      .then(response => {
+        let data = response.data
+        data['location_href'] = `https://maps.yandex.ru/?text=` + data['location'].slice(1, -1)
+        this.info = data
       })
   }
 }

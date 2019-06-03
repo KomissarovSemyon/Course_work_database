@@ -1,5 +1,44 @@
 <template>
   <div class="container">
+    <div>
+      <h3>
+        {{ info.title_ru }}
+      </h3>
+      <h6 class="text-muted">
+        {{ info.title_or }}
+        <span :v-if="info.year">
+          ({{ info.year }})
+        </span>
+      </h6>
+      <h6
+        :v-if="info.duration"
+        class="text-muted small">
+        {{ info.duration }} мин
+      </h6>
+      <div>
+        <!-- <span>
+          <span class="btn btn-danger mr-2">
+            -
+          </span>
+          <span
+            class="btn btn-info">
+            {{ info.rating ? (info.rating / 100) : '-' }}&nbsp;🌟
+          </span>
+          <span class="btn btn-success">
+            +
+          </span>
+        </span> -->
+        <a
+          v-if="info.kp_rating"
+          :href="info.kp_link"
+          class="btn btn-yellow">
+          <strong>
+            {{ info.kp_rating / 100 }}
+          </strong>
+        </a>
+      </div>
+    </div>
+    <hr>
     <div
       v-for="cinema in schedule"
       :key="cinema.id">
@@ -46,8 +85,18 @@
   </div>
 </template>
 
+<style>
+.btn-yellow {
+  background-color: #ffdb4d;
+}
+
+.btn-yellow:hover {
+  color: red;
+}
+</style>
+
 <script>
-import { movieSchedule } from '@/api'
+import { movieSchedule, movieInfo } from '@/api'
 
 export default {
   name: 'Movie',
@@ -55,7 +104,8 @@ export default {
     return {
       movieID: 0,
       schedule: [],
-      date: null
+      date: null,
+      info: {}
     }
   },
 
@@ -73,6 +123,12 @@ export default {
             }).sort((a, b) => a.date - b.date)
             return c
           })
+      })
+
+    movieInfo(this.movieID)
+      .then(response => {
+        let data = response.data
+        this.info = data
       })
   }
 }
