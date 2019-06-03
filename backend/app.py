@@ -135,10 +135,7 @@ def get_cinema_schedule(cinema_id, date_str=None):
         date_str = datetime.today().strftime('%Y-%m-%d')
 
     cur = conn.cursor()
-    columns = (
-        'id', 'ya_id', 'date', 'price_min',
-        'price_max', 'movie_title_ru', 'movie_id'
-    )
+
     cur.execute("""
     SELECT
         s.session_id,
@@ -146,8 +143,9 @@ def get_cinema_schedule(cinema_id, date_str=None):
         s.date,
         s.price_min,
         s.price_max,
+        m.movie_id,
         m.title_ru,
-        m.movie_id
+        s.hall_name
     FROM sessions s
     JOIN cinemas c on s.cinema_id = c.cinema_id
     JOIN movies m on s.movie_id = m.movie_id
@@ -158,14 +156,49 @@ def get_cinema_schedule(cinema_id, date_str=None):
         'cinema_id': cinema_id
     })
 
-    result = {
-        'sessions': [dict(zip(columns, i)) for i in cur.fetchall()],
-        'date': date_str
-    }
+    movies = list()
+    moviemap = dict()
+    for row in cur.fetchall():
+        session_id = row[0]
+        ya_id = row[1]
+        date = row[2]
+        price_min = row[3]
+        price_max = row[4]
+        movie_id = row[5]
+        movie_name = row[6]
+        hall_name = row[7]
+
+        if movie_id not in moviemap:
+            d = {
+                'id': movie_id,
+                'name': movie_name,
+                'sessions': list()
+            }
+            movies.append(d)
+            moviemap[movie_id] = d
+
+        ticket_url = None
+        if ya_id:
+            ya_id = ya_id.encode('utf-8')
+            ya_id = base64.b64encode(ya_id).decode('ascii')
+            ticket_url = 'http://widget.afisha.yandex.ru/w/sessions/' + ya_id
+
+        sesslist = moviemap[movie_id]['sessions']
+        sesslist.append({
+            'id': session_id,
+            'ticket_url': ticket_url,
+            'date': date.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'price_min': price_min,
+            'price_max': price_max,
+            'hall': hall_name,
+        })
 
     cur.close()
 
-    return jsonify(result)
+    return jsonify({
+        'schedule': movies,
+        'date': date_str,
+    })
 
 
 @app.route('/api/top_cinemas/<city_id>')

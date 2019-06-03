@@ -1,30 +1,26 @@
 <template>
   <div class="container">
     <div
-      v-for="cinema in schedule"
-      :key="cinema.id">
+      v-for="movie in schedule"
+      :key="movie.id">
       <div>
-
         <router-link
           :to="{
-            name: 'Cinema',
+            name: 'Movie',
             params: {
-              id: cinema.id,
+              id: movie.id,
               date: date
             }
           }"
           class="col-md-5 col-lg-4"
         >
           <h3>
-            {{ cinema.name }}
+            {{ movie.name }}
           </h3>
-          <h6 class="muted">
-            {{ cinema.address }}
-          </h6>
         </router-link>
         <div class="d-flex flex-wrap justify-content-left">
           <a
-            v-for="session in cinema.sessions"
+            v-for="session in movie.sessions"
             :key="session.id"
             :href="session.ticket_url"
             :class="'m-2 btn btn-' + (session.ticket_url ? 'primary' : 'outline-secondary')">
@@ -47,23 +43,23 @@
 </template>
 
 <script>
-import { movieSchedule } from '@/api'
+import { cinemaSchedule } from '@/api'
 
 export default {
   name: 'Movie',
   data: function () {
     return {
-      movieID: 0,
+      cinemaID: 0,
       schedule: [],
       date: null
     }
   },
 
   created: function () {
-    this.movieID = this.$route.params.id
+    this.cinemaID = this.$route.params.id
     this.date = this.$route.params.date
 
-    movieSchedule(77, this.movieID, this.date)
+    cinemaSchedule(this.cinemaID, this.date)
       .then(response => {
         this.schedule = response.data['schedule']
           .map(c => {
