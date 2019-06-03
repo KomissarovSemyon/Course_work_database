@@ -57,4 +57,14 @@ export default {
 #link-main, #link-main:hover, #link-main:focus {
     text-decoration: none;
 }
+
+.card-link {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  cursor: pointer;
+}
 </style>

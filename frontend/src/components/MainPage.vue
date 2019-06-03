@@ -77,15 +77,4 @@ export default {
   transform: translateY(-0.25rem);
   box-shadow: 0 2.25rem 1.5rem -1.5rem rgba(33,37,41,.3),0 0 1.5rem .5rem rgba(33,37,41,.05)!important;
 }
-
-.card-link {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 1;
-  cursor: pointer;
-}
-
 </style>
