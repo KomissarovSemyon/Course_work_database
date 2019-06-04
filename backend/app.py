@@ -520,12 +520,13 @@ def me():
     cur.close()
 
     movie_columns = (
-        'title_ru', 'title_or','year',
-        'kp_rating', 'rating',
+        'movie_id', 'title_ru', 'title_or',
+        'year', 'kp_rating', 'rating',
     )
     cur = conn.cursor()
     cur.execute("""
     SELECT
+        m.movie_id,
         m.title_ru,
         m.title_or,
         m.year,
@@ -541,11 +542,14 @@ def me():
     cur.close()
 
     cinema_columns = (
-        'name', 'address', 'location', 'city_name'
+        'cinema_id', 'name', 'address',
+        'location', 'city_name'
     )
     cur = conn.cursor()
     cur.execute("""
-    SELECT c.name,
+    SELECT
+        c.cinema_id,
+        c.name,
         c.address,
         c.loc,
         ct.name
