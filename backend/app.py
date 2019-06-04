@@ -142,7 +142,7 @@ def get_movie_schedule(city_id, movie_id, date_str=None):
 
         ticket_url = None
         if ya_id:
-            ya_id = ya_id.encode('utf-8')
+            ya_id = ya_id.encode('utf-8').strip()
             ya_id = base64.b64encode(ya_id).decode('ascii')
             ticket_url = 'http://widget.afisha.yandex.ru/w/sessions/' + ya_id
 
@@ -229,7 +229,7 @@ def get_cinema_schedule(cinema_id, date_str=None):
 
         ticket_url = None
         if ya_id:
-            ya_id = ya_id.encode('utf-8')
+            ya_id = ya_id.encode('utf-8').strip()
             ya_id = base64.b64encode(ya_id).decode('ascii')
             ticket_url = 'http://widget.afisha.yandex.ru/w/sessions/' + ya_id
 
