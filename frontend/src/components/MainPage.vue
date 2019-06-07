@@ -2,7 +2,7 @@
   <div class="main-page">
     <div class="container">
       <h1>
-        Кино в {{ city }} ({{ date }})
+        Кино в {{ cityName }} ({{ date }})
       </h1>
       <div class="row justify-content-center">
         <div
@@ -16,13 +16,19 @@
                 name: 'Movie',
                 params: {
                   id: movie.movie_id,
-                  date: date
+                  date: date,
+                  city_id: city,
                 }
               }"
               class="card-link"
             />
             <div>
-              <h5 class="card-title mb-3">{{ movie.title }}</h5>
+              <h5 class="card-title mb-3">
+                <span v-if="movie.is_starred">
+                  ❤️
+                </span>
+                {{ movie.title }}
+              </h5>
               <h6 class="card-subtitle mb-3 text-muted">
                 {{ movie.session_count }} сеансов
                 <span v-if="movie.min_price"> от {{ movie.min_price }} ₽ </span>
@@ -49,24 +55,37 @@
 </template>
 
 <script>
-import { currentMovies } from '@/api'
+import { currentMovies, getMe, cities } from '@/api'
 
 export default {
   name: 'MainPage',
   data: function () {
     return {
       movies: [],
-      city: 77,
+      city: 0,
+      cityName: '',
       date: null
     }
   },
-  created: function () {
+
+  watch: {
+    city: function () {
+      cities().then(data => {
+        this.cityName = data[this.city].name
+      })
+    }
+  },
+
+  created: async function () {
     this.date = this.$route.params.date
 
-    currentMovies(this.city, this.date)
-      .then(response => {
-        this.movies = response.data['movies']
-      })
+    getMe().then(async response => {
+      this.city = response.city_id
+      this.movies = (await currentMovies(this.city, this.date)).data.movies
+    }).catch(async () => {
+      this.city = 77
+      this.movies = (await currentMovies(this.city, this.date)).data.movies
+    })
   }
 }
 </script>

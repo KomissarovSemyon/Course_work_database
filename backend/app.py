@@ -45,29 +45,36 @@ jwt = JWTManager(app)
 
 @app.route('/api/current_movies/<city_id>')
 @app.route('/api/current_movies/<city_id>/<date_str>')
+@jwt_optional
 def get_current_movies(city_id, date_str=None):
     if date_str is None:
         date_str = datetime.today().strftime('%Y-%m-%d')
 
     cur = conn.cursor()
-    columns = ('movie_id', 'title', 'rating', 'session_count', 'min_price')
+    columns = ('movie_id', 'title', 'rating', 'session_count', 'min_price', 'is_starred')
     cur.execute("""
     SELECT DISTINCT
         MAX(m.movie_id),
         MAX(m.title_ru),
         MAX(m.kp_rating),
         COUNT(s.session_id),
-        MIN(NULLIF(s.price_min, 0))
+        MIN(NULLIF(s.price_min, 0)),
+        bool_or(usm.movie_id is not null) as is_starred
     FROM sessions s
     JOIN movies m ON m.movie_id = s.movie_id
     JOIN cinemas c ON s.cinema_id = c.cinema_id
+    LEFT JOIN user_starred_movies usm on usm.user_id = %(user_id)s
+        AND usm.movie_id = s.movie_id
     WHERE s.date::date = %(date)s
         AND c.city_id = %(city_id)s
     GROUP BY s.movie_id
-    ORDER BY COUNT(s.session_id) DESC
+    ORDER BY
+        is_starred DESC,
+        COUNT(s.session_id) DESC
     """, {
         'date': date_str,
-        'city_id': int(city_id)
+        'city_id': int(city_id),
+        'user_id': get_jwt_identity(),
     })
 
     result = {
@@ -220,7 +227,7 @@ def get_cinema_schedule(cinema_id, date_str=None):
         if movie_id not in moviemap:
             d = {
                 'id': movie_id,
-                'name': movie_name,
+                'title': movie_name,
                 'is_starred': is_starred,
                 'sessions': list()
             }
@@ -332,11 +339,13 @@ def get_movie_info(movie_id):
 @jwt_optional
 def get_cinema_info(cinema_id):
     cur = conn.cursor()
-    columns = ('name', 'address', 'location', 'city_name', 'is_favorite')
+    columns = ('name', 'address', 'location', 'city_id', 'city_name', 'is_favorite')
     cur.execute("""
-    SELECT c.name,
+    SELECT
+        c.name,
         c.address,
         c.loc,
+        ct.city_id,
         ct.name,
         (ufc.cinema_id is not null) as is_favorite
     FROM cinemas c
@@ -492,6 +501,22 @@ def login():
 
     return jsonify(result)
 
+@app.route('/api/cities')
+def cities():
+    cur = conn.cursor()
+    columns = ('id', 'name')
+    cur.execute("""
+    SELECT
+        c.city_id,
+        c.name
+    FROM cities c
+    """)
+    
+    result = [dict(zip(columns, v)) for v in cur.fetchall()]
+    cur.close()
+
+    return jsonify(result)
+
 @app.route('/auth/me')
 @jwt_required
 def me():
@@ -543,7 +568,7 @@ def me():
 
     cinema_columns = (
         'cinema_id', 'name', 'address',
-        'location', 'city_name'
+        'location', 'city_id', 'city_name'
     )
     cur = conn.cursor()
     cur.execute("""
@@ -552,6 +577,7 @@ def me():
         c.name,
         c.address,
         c.loc,
+        ct.city_id,
         ct.name
     FROM user_favorite_cinemas ufc
     LEFT JOIN cinemas c ON c.cinema_id = ufc.cinema_id

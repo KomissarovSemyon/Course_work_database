@@ -12,6 +12,19 @@
           {{ info.city_name }}
         </h6>
       </a>
+
+      <button
+        v-if="info.is_favorite"
+        class="btn btn-primary"
+        @click="star(false)">
+        💘
+      </button>
+      <button
+        v-else
+        class="btn btn-primary"
+        @click="star(true)">
+        ❤️
+      </button>
     </div>
     <hr>
     <div
@@ -23,13 +36,17 @@
             name: 'Movie',
             params: {
               id: movie.id,
-              date: date
+              date: date,
+              city_id: info.city_id
             }
           }"
           class="col-md-5 col-lg-4"
         >
           <h3>
-            {{ movie.name }}
+            <span v-if="movie.is_starred">
+              ❤️
+            </span>
+            {{ movie.title }}
           </h3>
         </router-link>
         <div class="d-flex flex-wrap justify-content-left">
@@ -57,7 +74,7 @@
 </template>
 
 <script>
-import { cinemaSchedule, cinemaInfo } from '@/api'
+import { cinemaSchedule, cinemaInfo, starCinema } from '@/api'
 
 export default {
   name: 'Movie',
@@ -94,6 +111,12 @@ export default {
         data['location_href'] = `https://maps.yandex.ru/?text=` + data['location'].slice(1, -1)
         this.info = data
       })
+  },
+
+  methods: {
+    star: async function (newV) {
+      this.info.is_favorite = (await starCinema(this.cinemaID, newV)).data.favorite
+    }
   }
 }
 </script>

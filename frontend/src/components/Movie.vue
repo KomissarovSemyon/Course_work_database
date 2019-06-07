@@ -16,18 +16,18 @@
         {{ info.duration }} мин
       </h6>
       <div>
-        <!-- <span>
-          <span class="btn btn-danger mr-2">
-            -
-          </span>
-          <span
-            class="btn btn-info">
-            {{ info.rating ? (info.rating / 100) : '-' }}&nbsp;🌟
-          </span>
-          <span class="btn btn-success">
-            +
-          </span>
-        </span> -->
+        <button
+          v-if="info.is_starred"
+          class="btn btn-primary"
+          @click="star(false)">
+          💘
+        </button>
+        <button
+          v-else
+          class="btn btn-primary"
+          @click="star(true)">
+          ❤️
+        </button>
         <a
           v-if="info.kp_rating"
           :href="info.kp_link"
@@ -55,6 +55,7 @@
           class="col-md-5 col-lg-4"
         >
           <h3>
+            {{ cinema.is_favorite ? '❤️' : '' }}
             {{ cinema.name }}
           </h3>
           <h6 class="muted">
@@ -96,13 +97,14 @@
 </style>
 
 <script>
-import { movieSchedule, movieInfo } from '@/api'
+import { movieSchedule, movieInfo, starMovie } from '@/api'
 
 export default {
   name: 'Movie',
   data: function () {
     return {
       movieID: 0,
+      cityID: 0,
       schedule: [],
       date: null,
       info: {}
@@ -111,9 +113,10 @@ export default {
 
   created: function () {
     this.movieID = this.$route.params.id
+    this.cityID = this.$route.params.city_id
     this.date = this.$route.params.date
 
-    movieSchedule(77, this.movieID, this.date)
+    movieSchedule(this.cityID, this.movieID, this.date)
       .then(response => {
         this.schedule = response.data['schedule']
           .map(c => {
@@ -130,6 +133,12 @@ export default {
         let data = response.data
         this.info = data
       })
+  },
+
+  methods: {
+    star: async function (newV) {
+      this.info.is_starred = (await starMovie(this.movieID, newV)).data.star
+    }
   }
 }
 </script>

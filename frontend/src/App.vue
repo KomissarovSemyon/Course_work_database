@@ -12,32 +12,43 @@
       </h5>
 
       <a
-        v-if="userID"
+        v-if="email"
         class="btn btn-outline-danger"
         href="#"
-        @click="userID = 0">
+        @click="signOut">
         Выйти
       </a>
-      <a
+      <router-link
         v-else
+        :to="{ name: 'Auth' }"
         class="btn btn-outline-primary"
-        href="#"
-        @click="userID = 1"
       >
         Войти
-      </a>
+      </router-link>
     </header>
-    <router-view />
+    <keep-alive include="MainPage">
+      <router-view/>
+    </keep-alive>
   </div>
 </template>
 
 <script>
+import { getMe, signOut } from '@/api'
+
 export default {
   name: 'App',
   data: function () {
     return {
-      userID: 1
+      email: '',
+      signOut: () => {
+        signOut()
+        this.email = null
+      }
     }
+  },
+
+  created: function () {
+    getMe().then(me => { this.email = me.email }).catch(() => 0)
   }
 }
 </script>
