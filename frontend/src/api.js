@@ -112,10 +112,18 @@ const signOut = function () {
   return authStore.clear()
 }
 
+const setCity = function (cityID) {
+  const path = `auth/set_city`
+  return post(path, {
+    city_id: cityID
+  })
+}
+
 const getMe = function (noCache = false) {
   return new Promise((resolve, reject) => {
     if (meCached !== null && !noCache) {
-      return meCached
+      resolve(meCached)
+      return
     }
 
     let path = `auth/me`
@@ -136,7 +144,8 @@ let citiesCached = null
 const cities = function (noCache = false) {
   return new Promise((resolve, reject) => {
     if (citiesCached !== null && !noCache) {
-      return citiesCached
+      resolve(citiesCached)
+      return
     }
 
     let path = `api/cities`
@@ -184,6 +193,7 @@ export {
   signIn,
   signOut,
   getMe,
+  setCity,
 
   cities,
 

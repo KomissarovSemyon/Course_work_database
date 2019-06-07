@@ -11,6 +11,14 @@
         </router-link>
       </h5>
 
+      <router-link
+        v-if="email"
+        :to="{ name: 'User' }"
+        class="mr-2 btn btn-outline-primary"
+      >
+        {{ email }}
+      </router-link>
+
       <a
         v-if="email"
         class="btn btn-outline-danger"

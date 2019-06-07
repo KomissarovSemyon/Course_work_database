@@ -4,6 +4,7 @@ import MainPage from '@/components/MainPage'
 import Movie from '@/components/Movie'
 import Cinema from '@/components/Cinema'
 import Auth from '@/components/Auth'
+import User from '@/components/User'
 
 Vue.use(Router)
 
@@ -14,6 +15,11 @@ export default new Router({
       path: '/auth',
       name: 'Auth',
       component: Auth
+    },
+    {
+      path: '/me',
+      name: 'User',
+      component: User
     },
     {
       path: '/:date?',

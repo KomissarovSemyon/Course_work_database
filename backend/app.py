@@ -401,6 +401,37 @@ def register():
     cur.close()
     return jsonify(result)
 
+@app.route('/auth/set_city', methods=['POST'])
+@jwt_required
+def set_city():
+    if not request.is_json:
+        return jsonify({"msg": "Missing JSON in request"}), 400
+    
+    city_id = request.json['city_id'] 
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+        UPDATE users
+        SET city_id = %(city_id)s
+        WHERE user_id = %(user_id)s
+        """, {
+            'city_id': city_id,
+            'user_id': get_jwt_identity(),
+        })
+
+        result = {
+            'ok': True,
+            'city_id': city_id
+        }
+        conn.commit()
+    except Exception as e:
+        print(e)
+        result = {'ok': False}
+        conn.rollback()
+
+    return jsonify(result)
+
 @app.route('/api/star_movie/<movie_id>', methods=['POST'])
 @jwt_required
 def star_movie(movie_id):
