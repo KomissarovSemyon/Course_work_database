@@ -122,6 +122,7 @@ export default {
           .map(c => {
             c.sessions = c.sessions.map(s => {
               s.date = new Date(s.date)
+              s.date = new Date(s.date.getTime() - 3 * 1000 * 60 * 60)
               return s
             }).sort((a, b) => a.date - b.date)
             return c
